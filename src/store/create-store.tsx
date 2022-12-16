@@ -12,10 +12,18 @@ export function createStore<T>(initialState: T) {
 
     const get = useCallback(() => store.current, []);
 
-    const set = useCallback((value: Partial<T>) => {
-      store.current = { ...store.current, ...value };
-      subscribers.current.forEach((subscriber) => subscriber(store.current));
-    }, []);
+    const set = useCallback(
+      (value: Partial<T> | ((store: T) => Partial<T>)) => {
+        if (typeof value === "function") {
+          const newStore = value(store.current);
+          store.current = { ...store.current, ...newStore };
+        } else {
+          store.current = { ...store.current, ...value };
+        }
+        subscribers.current.forEach((subscriber) => subscriber(store.current));
+      },
+      []
+    );
 
     const subscribe = useCallback((callback: (store: T) => void) => {
       subscribers.current.add(callback);
@@ -45,7 +53,9 @@ export function createStore<T>(initialState: T) {
     );
   };
 
-  function useStore<U>(selector: (store: T) => U) {
+  function useStore<U>(
+    selector: (store: T) => U
+  ): [U, (value: Partial<T> | ((store: T) => Partial<T>)) => void] {
     const store = useContext(StoreContext);
     if (!store) {
       throw new Error("Cannot access StoreContext outside StoreProvider");
@@ -58,5 +68,8 @@ export function createStore<T>(initialState: T) {
     return [state, store.set];
   }
 
-  return [StoreProvider, useStore];
+  return {
+    StoreProvider,
+    useStore,
+  };
 }
